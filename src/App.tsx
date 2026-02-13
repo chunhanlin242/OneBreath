@@ -433,10 +433,10 @@ const App = () => {
         {/* Gradient overlay */}
         <div className={`absolute inset-0 ${darkMode ? 'bg-gradient-to-br from-slate-900/95 via-slate-800/95 to-slate-900/95' : 'bg-gradient-to-br from-blue-50/95 via-purple-50/95 to-pink-50/95'}`} />
 
-        {/* Dark mode toggle - Fixed positioning */}
+        {/* Dark mode toggle - Bottom right corner */}
         <button
           onClick={toggleDarkMode}
-          className={`fixed top-6 left-6 p-4 rounded-full ${darkMode ? 'bg-slate-700/70 hover:bg-slate-600/70' : 'bg-white/50 hover:bg-white/70'} backdrop-blur-xl border ${darkMode ? 'border-slate-600/50' : 'border-white/60'} shadow-xl transition-all z-50`}
+          className={`fixed bottom-6 right-6 p-4 rounded-full ${darkMode ? 'bg-slate-700/70 hover:bg-slate-600/70' : 'bg-white/50 hover:bg-white/70'} backdrop-blur-xl border ${darkMode ? 'border-slate-600/50' : 'border-white/60'} shadow-xl transition-all z-50 hover:scale-110`}
         >
           {darkMode ? <Sun size={24} className="text-yellow-300" /> : <Moon size={24} className="text-slate-700" />}
         </button>
@@ -529,10 +529,10 @@ const App = () => {
         {/* Gradient overlay */}
         <div className={`absolute inset-0 ${darkMode ? 'bg-gradient-to-br from-slate-900/90 via-slate-800/90 to-slate-900/90' : 'bg-gradient-to-br from-blue-50/90 via-purple-50/90 to-pink-50/90'}`} />
 
-        {/* Dark mode toggle - Fixed positioning */}
+        {/* Dark mode toggle - Bottom right corner */}
         <button
           onClick={toggleDarkMode}
-          className={`fixed top-6 left-6 p-4 rounded-full ${darkMode ? 'bg-slate-700/70 hover:bg-slate-600/70' : 'bg-white/50 hover:bg-white/70'} backdrop-blur-xl border ${darkMode ? 'border-slate-600/50' : 'border-white/60'} shadow-xl transition-all z-50`}
+          className={`fixed bottom-6 right-6 p-4 rounded-full ${darkMode ? 'bg-slate-700/70 hover:bg-slate-600/70' : 'bg-white/50 hover:bg-white/70'} backdrop-blur-xl border ${darkMode ? 'border-slate-600/50' : 'border-white/60'} shadow-xl transition-all z-50 hover:scale-110`}
         >
           {darkMode ? <Sun size={24} className="text-yellow-300" /> : <Moon size={24} className="text-slate-700" />}
         </button>
@@ -553,44 +553,94 @@ const App = () => {
             {/* Duration slider */}
             <div className={`space-y-4 px-8 py-6 rounded-3xl ${darkMode ? 'bg-slate-800/50 border-slate-700/60' : 'bg-white/50 border-white/60'} backdrop-blur-2xl border shadow-xl`}>
               <label className={`block text-sm font-semibold ${darkMode ? 'text-slate-200' : 'text-gray-800'} tracking-wide`}>Duration</label>
-              <input type="range" min="1" max="60" step="1" value={duration}
-                onChange={e => setDuration(+e.target.value)}
-                className="w-full h-3 rounded-full appearance-none cursor-pointer"
-                style={{ 
-                  background: `linear-gradient(to right, #10b981 0%, #10b981 ${((duration-1)/59)*100}%, ${darkMode ? 'rgba(51,65,85,0.5)' : 'rgba(255,255,255,0.5)'} ${((duration-1)/59)*100}%, ${darkMode ? 'rgba(51,65,85,0.5)' : 'rgba(255,255,255,0.5)'} 100%)`,
-                }}
-              />
-              <div className={`text-center px-6 py-3 rounded-2xl ${darkMode ? 'bg-slate-700/60 border-slate-600/40' : 'bg-white/60 border-white/40'} backdrop-blur-sm border shadow-lg`}>
+              <div className="relative py-2">
+                <input 
+                  type="range" 
+                  min="1" 
+                  max="60" 
+                  step="1" 
+                  value={duration}
+                  onChange={e => setDuration(+e.target.value)}
+                  className="w-full h-6 rounded-full appearance-none cursor-pointer slider-thumb"
+                  style={{ 
+                    background: `linear-gradient(to right, #10b981 0%, #10b981 ${((duration-1)/59)*100}%, ${darkMode ? 'rgba(51,65,85,0.5)' : 'rgba(255,255,255,0.5)'} ${((duration-1)/59)*100}%, ${darkMode ? 'rgba(51,65,85,0.5)' : 'rgba(255,255,255,0.5)'} 100%)`,
+                  }}
+                />
+                <style>{`
+                  .slider-thumb::-webkit-slider-thumb {
+                    appearance: none;
+                    width: 36px;
+                    height: 36px;
+                    border-radius: 50%;
+                    background: linear-gradient(135deg, #10b981 0%, #14b8a6 100%);
+                    cursor: pointer;
+                    border: 3px solid white;
+                    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+                    transition: transform 0.2s ease, box-shadow 0.2s ease;
+                  }
+                  .slider-thumb::-webkit-slider-thumb:hover {
+                    transform: scale(1.15);
+                    box-shadow: 0 6px 20px rgba(16, 185, 129, 0.6);
+                  }
+                  .slider-thumb::-webkit-slider-thumb:active {
+                    transform: scale(1.05);
+                  }
+                  .slider-thumb::-moz-range-thumb {
+                    width: 36px;
+                    height: 36px;
+                    border-radius: 50%;
+                    background: linear-gradient(135deg, #10b981 0%, #14b8a6 100%);
+                    cursor: pointer;
+                    border: 3px solid white;
+                    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+                    transition: transform 0.2s ease, box-shadow 0.2s ease;
+                  }
+                  .slider-thumb::-moz-range-thumb:hover {
+                    transform: scale(1.15);
+                    box-shadow: 0 6px 20px rgba(16, 185, 129, 0.6);
+                  }
+                  .slider-thumb::-moz-range-thumb:active {
+                    transform: scale(1.05);
+                  }
+                `}</style>
+              </div>
+              <div className={`text-center px-6 py-3 rounded-2xl ${darkMode ? 'bg-slate-700/60 border-slate-600/40' : 'bg-white/60 border-white/40'} backdrop-blur-sm border shadow-lg transition-all duration-300`}>
                 <span className={`text-4xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{duration}</span>
                 <span className={`text-lg ${darkMode ? 'text-slate-300' : 'text-gray-600'} ml-2 font-medium`}>{duration === 1 ? 'minute' : 'minutes'}</span>
               </div>
             </div>
 
             {/* Breathing pattern dropdown */}
-            <div className={`space-y-4 px-8 py-6 rounded-3xl ${darkMode ? 'bg-slate-800/50 border-slate-700/60' : 'bg-white/50 border-white/60'} backdrop-blur-2xl border shadow-xl`}>
+            <div className={`space-y-4 px-8 py-6 rounded-3xl ${darkMode ? 'bg-slate-800/50 border-slate-700/60' : 'bg-white/50 border-white/60'} backdrop-blur-2xl border shadow-xl transition-all duration-300`}>
               <label className={`block text-sm font-semibold ${darkMode ? 'text-slate-200' : 'text-gray-800'} tracking-wide`}>Breathing Pattern</label>
               
               <button
                 onClick={() => setDropdownOpen(!dropdownOpen)}
-                className={`w-full px-6 py-5 rounded-2xl ${darkMode ? 'bg-slate-700/80 border-slate-600/60 text-white hover:bg-slate-700' : 'bg-white/80 border-white/60 text-gray-900 hover:bg-white'} backdrop-blur-xl border flex items-center justify-between shadow-lg hover:shadow-xl transition-all`}
+                className={`w-full px-6 py-5 rounded-2xl ${darkMode ? 'bg-slate-700/80 border-slate-600/60 text-white hover:bg-slate-700' : 'bg-white/80 border-white/60 text-gray-900 hover:bg-white'} backdrop-blur-xl border flex items-center justify-between shadow-lg hover:shadow-xl transition-all duration-300`}
               >
                 <div className="text-left">
                   <div className="font-bold text-lg">{pattern.name}</div>
                   <div className={`text-xs ${darkMode ? 'text-slate-300' : 'text-gray-600'} mt-1 font-medium`}>{pattern.label} • {pattern.benefit}</div>
                 </div>
-                <ChevronDown className={`transition-transform ${darkMode ? 'text-slate-300' : 'text-gray-600'} ${dropdownOpen ? 'rotate-180' : ''}`} size={22} />
+                <ChevronDown className={`transition-transform duration-300 ${darkMode ? 'text-slate-300' : 'text-gray-600'} ${dropdownOpen ? 'rotate-180' : ''}`} size={22} />
               </button>
 
-              {dropdownOpen && (
+              {/* Dropdown with smooth animation */}
+              <div 
+                className={`overflow-hidden transition-all duration-500 ease-in-out ${
+                  dropdownOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+                }`}
+                style={{ transformOrigin: 'top' }}
+              >
                 <div className={`space-y-2 ${darkMode ? 'bg-slate-800/70 border-slate-700/60' : 'bg-white/70 border-white/60'} backdrop-blur-2xl rounded-2xl p-3 border shadow-2xl`}>
                   {BREATHING_PATTERNS.map((p, i) => (
                     <button
                       key={i}
                       onClick={() => {
                         setPatternIndex(i);
-                        setDropdownOpen(false);
+                        setTimeout(() => setDropdownOpen(false), 200);
                       }}
-                      className={`w-full px-5 py-4 rounded-xl text-left transition-all ${
+                      className={`w-full px-5 py-4 rounded-xl text-left transition-all duration-300 transform hover:scale-[1.02] ${
                         i === patternIndex 
                           ? 'bg-gradient-to-r from-emerald-400 to-teal-400 text-white shadow-lg shadow-emerald-500/30' 
                           : darkMode 
@@ -603,31 +653,36 @@ const App = () => {
                     </button>
                   ))}
                 </div>
-              )}
+              </div>
 
               <button
                 onClick={() => setShowPatternInfo(!showPatternInfo)}
-                className={`flex items-center gap-2 ${darkMode ? 'text-slate-300 hover:text-white bg-slate-700/50 border-slate-600/40 hover:bg-slate-700/70' : 'text-gray-700 hover:text-gray-900 bg-white/50 border-white/40 hover:bg-white/70'} transition-colors text-sm font-medium px-4 py-2 rounded-xl backdrop-blur-sm border`}
+                className={`flex items-center gap-2 ${darkMode ? 'text-slate-300 hover:text-white bg-slate-700/50 border-slate-600/40 hover:bg-slate-700/70' : 'text-gray-700 hover:text-gray-900 bg-white/50 border-white/40 hover:bg-white/70'} transition-all duration-300 text-sm font-medium px-4 py-2 rounded-xl backdrop-blur-sm border hover:scale-105`}
               >
-                <HelpCircle size={16} />
+                <HelpCircle size={16} className="transition-transform duration-300" />
                 <span>About this pattern</span>
               </button>
 
-              {showPatternInfo && (
+              {/* Pattern info with smooth animation */}
+              <div 
+                className={`overflow-hidden transition-all duration-500 ease-in-out ${
+                  showPatternInfo ? 'max-h-96 opacity-100 mt-4' : 'max-h-0 opacity-0 mt-0'
+                }`}
+              >
                 <div className={`px-5 py-4 ${darkMode ? 'bg-slate-800/80 border-slate-700/60 text-slate-200' : 'bg-white/80 border-white/60 text-gray-700'} backdrop-blur-xl rounded-2xl text-sm leading-relaxed border shadow-xl`}>
                   <div className="flex items-start justify-between mb-2">
                     <h3 className={`font-bold ${darkMode ? 'text-white' : 'text-gray-900'} text-base`}>{pattern.name}</h3>
-                    <button onClick={() => setShowPatternInfo(false)} className={`${darkMode ? 'text-slate-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}`}>
+                    <button onClick={() => setShowPatternInfo(false)} className={`${darkMode ? 'text-slate-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'} transition-all duration-300 hover:rotate-90`}>
                       <X size={18} />
                     </button>
                   </div>
                   <p className="font-medium">{pattern.description}</p>
                 </div>
-              )}
+              </div>
             </div>
 
             <button onClick={startSession}
-              className={`w-full py-6 bg-gradient-to-r from-emerald-400 to-teal-400 hover:from-emerald-500 hover:to-teal-500 text-white rounded-full text-xl font-bold transition-all shadow-2xl shadow-emerald-500/40 hover:shadow-emerald-500/60 hover:scale-[1.02] flex items-center justify-center gap-3 border ${darkMode ? 'border-emerald-300/20' : 'border-white/20'} backdrop-blur-sm`}>
+              className={`w-full py-6 bg-gradient-to-r from-emerald-400 to-teal-400 hover:from-emerald-500 hover:to-teal-500 text-white rounded-full text-xl font-bold transition-all duration-300 shadow-2xl shadow-emerald-500/40 hover:shadow-emerald-500/60 hover:scale-[1.02] flex items-center justify-center gap-3 border ${darkMode ? 'border-emerald-300/20' : 'border-white/20'} backdrop-blur-sm`}>
               <Play size={24} fill="white" /> Start Session
             </button>
           </div>
