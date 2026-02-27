@@ -56,6 +56,7 @@ const App: React.FC = () => {
   const [expandedPatternInfo, setExpandedPatternInfo] = useState<number | null>(null);
   const [showTimePickerPanel, setShowTimePickerPanel] = useState<boolean>(false);
   const [tempReminderTime, setTempReminderTime] = useState<string>('08:00');
+  const [checkAnimDone, setCheckAnimDone] = useState<boolean>(false);
   
   const [darkMode, setDarkMode] = useState<boolean>(() => JSON.parse(localStorage.getItem('breath_dark') || 'true'));
   const [musicEnabled, setMusicEnabled] = useState<boolean>(() => JSON.parse(localStorage.getItem('breath_music') || 'true'));
@@ -71,6 +72,53 @@ const App: React.FC = () => {
   const pianoAudioRef = useRef<{ ctx: AudioContext; masterGain: GainNode } | null>(null);
 
   const pattern = BREATHING_PATTERNS[patternIndex];
+
+  // Storage helpers
+  const getCompletions = (): string[] => {
+    try { return JSON.parse(localStorage.getItem('breath_completions') || '[]'); }
+    catch { return []; }
+  };
+  
+  const todayStr = (): string => new Date().toISOString().split('T')[0];
+  const isCompletedToday = (): boolean => getCompletions().includes(todayStr());
+
+  const markComplete = (): void => {
+    const completions = getCompletions();
+    const t = todayStr();
+    if (!completions.includes(t)) {
+      completions.push(t);
+      localStorage.setItem('breath_completions', JSON.stringify(completions));
+    }
+  };
+
+  const getStreak = (): number => {
+    const completions = getCompletions().sort().reverse();
+    if (!completions.length) return 0;
+    let streak = 0;
+    for (let i = 0; i < 365; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      if (completions.includes(d.toISOString().split('T')[0])) streak++;
+      else break;
+    }
+    return streak;
+  };
+
+  const getRecentDates = () => {
+    const completions = getCompletions();
+    const dates = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const str = d.toISOString().split('T')[0];
+      dates.push({ 
+        str, 
+        label: d.toLocaleDateString('zh-TW', { weekday: 'short', month: 'numeric', day: 'numeric' }), 
+        done: completions.includes(str) 
+      });
+    }
+    return dates;
+  };
 
   useEffect(() => {
     localStorage.setItem('breath_dark', JSON.stringify(darkMode));
@@ -218,6 +266,26 @@ const App: React.FC = () => {
     }
   };
 
+  const playSingingBowl = (): void => {
+    if (!audioCtxRef.current || !musicEnabled) return;
+    const ctx = audioCtxRef.current;
+    const now = ctx.currentTime;
+    const duration = 6;
+
+    [[432, 0.32], [648, 0.14]].forEach(([freq, amp]) => {
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      g.gain.setValueAtTime(amp, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + duration);
+      osc.connect(g);
+      g.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + duration);
+    });
+  };
+
   // 隨呼吸調整音量
   useEffect(() => {
     if (isActive && gainNodeRef.current && audioCtxRef.current) {
@@ -247,7 +315,14 @@ const App: React.FC = () => {
       const remaining = Math.max(0, duration * 60 - elapsed);
       setTimeLeft(remaining);
       if (remaining <= 0) {
-        setIsActive(false); stopOceanSound(); setShowCompletion(true);
+        setIsActive(false); 
+        stopOceanSound(); 
+        setTimeout(() => {
+          playSingingBowl();
+          markComplete();
+          setShowCompletion(true);
+          setTimeout(() => setCheckAnimDone(true), 900);
+        }, 400);
         return;
       }
       const cycle = pattern.inhale + pattern.hold + pattern.exhale;
@@ -299,9 +374,53 @@ const App: React.FC = () => {
       {/* 完成 */}
       {showCompletion && (
         <div className="fixed inset-0 z-[210] bg-inherit flex flex-col items-center justify-center text-center p-6 animate-in fade-in">
-          <div className="text-7xl mb-6">🌊</div>
+          <div className="text-7xl mb-6 animate-pulse">🌊</div>
           <h2 className="text-3xl font-bold mb-4">平靜達成</h2>
-          <button onClick={() => setShowCompletion(false)} className="px-10 py-4 bg-emerald-500 text-white rounded-full font-bold shadow-xl">回到首頁</button>
+          
+          {getStreak() > 0 && (
+            <div className={`inline-block px-6 py-2 rounded-full ${darkMode ? 'bg-slate-800/70' : 'bg-white/70'} backdrop-blur-xl border ${darkMode ? 'border-slate-700/50' : 'border-white/50'} shadow-lg text-emerald-500 font-medium mb-6`}>
+              {getStreak()} 天連續記錄 🔥
+            </div>
+          )}
+
+          <div className="flex flex-col items-center gap-3 mb-8">
+            <div className={`flex items-center gap-3 px-6 py-4 rounded-3xl ${darkMode ? 'bg-slate-800/70 border-slate-700/50' : 'bg-white/70 border-white/50'} backdrop-blur-xl border shadow-2xl shadow-emerald-500/20 transition-all duration-700 ${checkAnimDone ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}`}>
+              <svg viewBox="0 0 24 24" className="w-8 h-8 text-emerald-500" fill="none">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2.5" />
+                <path d="M7 12.5l3.5 3.5 6-7" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
+                  strokeDasharray="16" strokeDashoffset={checkAnimDone ? 0 : 16}
+                  style={{ transition: 'stroke-dashoffset 0.6s ease 0.2s' }} />
+              </svg>
+              <span className={`${darkMode ? 'text-white' : 'text-gray-900'} text-sm font-semibold`}>今天 — {new Date().toLocaleDateString('zh-TW', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+            </div>
+          </div>
+
+          <div className={`space-y-3 px-6 py-5 rounded-3xl ${darkMode ? 'bg-slate-800/50 border-slate-700/40' : 'bg-white/50 border-white/40'} backdrop-blur-xl border shadow-xl mb-8 max-w-sm w-full`}>
+            <p className={`${darkMode ? 'text-slate-400' : 'text-gray-600'} text-xs uppercase tracking-widest font-semibold`}>最近 7 天</p>
+            <div className="grid grid-cols-7 gap-2">
+              {getRecentDates().map(({ str, label, done }) => {
+                const isToday = str === todayStr();
+                return (
+                  <div key={str} className="flex flex-col items-center gap-1.5">
+                    <div className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-500 ${done ? 'bg-gradient-to-br from-emerald-400 to-teal-500 shadow-lg shadow-emerald-500/30' : darkMode ? 'bg-slate-700/60 backdrop-blur-sm border border-slate-600' : 'bg-white/60 backdrop-blur-sm border border-gray-200'} ${isToday && done ? 'ring-2 ring-emerald-400 ring-offset-2' : ''}`}>
+                      {done && (
+                        <svg viewBox="0 0 14 14" className="w-5 h-5" fill="none">
+                          <path d="M3 7l2.8 3 5-6" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                            strokeDasharray="12" strokeDashoffset={checkAnimDone ? 0 : 12}
+                            style={{ transition: `stroke-dashoffset 0.5s ease ${isToday ? 0.4 : 0.2}s` }} />
+                        </svg>
+                      )}
+                    </div>
+                    <span className={`${darkMode ? 'text-slate-500' : 'text-gray-500'} text-xs font-medium`}>
+                      {new Date(str + 'T12:00:00').toLocaleDateString('zh-TW', { weekday: 'narrow' })}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <button onClick={() => { setShowCompletion(false); setCheckAnimDone(false); }} className="px-10 py-4 bg-emerald-500 text-white rounded-full font-bold shadow-xl">回到首頁</button>
         </div>
       )}
 
@@ -319,6 +438,10 @@ const App: React.FC = () => {
               </div>
               <h3 className="text-2xl font-bold mb-1">{pattern.name}</h3>
               <p className="text-xs text-emerald-500 font-bold mb-3">{pattern.label}</p>
+              <div className="flex items-center gap-2 mb-3">
+                <Clock size={16} className="text-emerald-500" />
+                <p className="text-sm font-bold text-emerald-500">{duration} 分鐘</p>
+              </div>
               <p className="opacity-60 text-sm leading-relaxed">{pattern.description}</p>
             </div>
 
@@ -361,17 +484,17 @@ const App: React.FC = () => {
         onClick={() => setShowTimePickerPanel(false)} 
       />
       <div 
-        className={`fixed bottom-0 left-0 right-0 z-[160] rounded-t-[48px] p-8 pb-12 transition-transform duration-500 ease-out transform ${darkMode ? 'bg-slate-900 border-t border-slate-800' : 'bg-white'} ${showTimePickerPanel ? 'translate-y-0' : 'translate-y-full'}`}
+        className={`fixed bottom-0 left-0 right-0 z-[160] rounded-t-[48px] p-6 sm:p-8 pb-8 transition-transform duration-500 ease-out transform ${darkMode ? 'bg-slate-900 border-t border-slate-800' : 'bg-white'} ${showTimePickerPanel ? 'translate-y-0' : 'translate-y-full'}`}
       >
-        <div className="w-12 h-1.5 bg-slate-500/30 rounded-full mx-auto mb-8" />
+        <div className="w-12 h-1.5 bg-slate-500/30 rounded-full mx-auto mb-6" />
         <h2 className="text-2xl font-bold mb-6 text-center">設定提醒時間</h2>
         
-        <div className="space-y-6">
+        <div className="space-y-6 max-w-md mx-auto">
           <input
             type="time"
             value={tempReminderTime}
             onChange={(e) => setTempReminderTime(e.target.value)}
-            className={`w-full text-5xl font-light text-center p-6 rounded-3xl ${darkMode ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-900'} focus:outline-none focus:ring-2 focus:ring-emerald-500`}
+            className={`w-full text-4xl sm:text-5xl font-light text-center p-4 sm:p-6 rounded-3xl ${darkMode ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-900'} focus:outline-none focus:ring-2 focus:ring-emerald-500`}
           />
           
           <div className="grid grid-cols-2 gap-3">
@@ -397,42 +520,42 @@ const App: React.FC = () => {
         onClick={() => setIsSetupOpen(false)} 
       />
       <div 
-        className={`fixed bottom-0 left-0 right-0 z-[160] rounded-t-[48px] p-6 sm:p-8 pb-12 transition-transform duration-500 ease-out transform ${darkMode ? 'bg-slate-900 border-t border-slate-800' : 'bg-white'} ${isSetupOpen ? 'translate-y-0' : 'translate-y-full'}`}
-        style={{ maxHeight: '85vh', overflowY: 'auto' }}
+        className={`fixed bottom-0 left-0 right-0 z-[160] rounded-t-[48px] p-6 sm:p-8 pb-safe transition-transform duration-500 ease-out transform ${darkMode ? 'bg-slate-900 border-t border-slate-800' : 'bg-white'} ${isSetupOpen ? 'translate-y-0' : 'translate-y-full'}`}
+        style={{ maxHeight: '80vh', overflowY: 'auto' }}
       >
-        <div className="w-12 h-1.5 bg-slate-500/30 rounded-full mx-auto mb-8" />
+        <div className="w-12 h-1.5 bg-slate-500/30 rounded-full mx-auto mb-6" />
         <h2 className="text-2xl font-bold mb-6 text-center">呼吸模式</h2>
         
-        <div className="space-y-6 max-w-md mx-auto">
-          <div className="space-y-3">
+        <div className="space-y-4 max-w-md mx-auto pb-4">
+          <div className="space-y-2">
             {BREATHING_PATTERNS.map((p, i) => (
               <div key={p.name}>
                 <button 
                   onClick={() => setPatternIndex(i)} 
-                  className={`w-full p-4 sm:p-5 rounded-3xl text-left border-2 transition-all ${patternIndex === i ? 'border-emerald-500 bg-emerald-500/5' : 'border-transparent bg-slate-500/5'}`}
+                  className={`w-full p-4 rounded-3xl text-left border-2 transition-all ${patternIndex === i ? 'border-emerald-500 bg-emerald-500/5' : 'border-transparent bg-slate-500/5'}`}
                 >
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex-1">
-                      <span className="font-bold text-base sm:text-lg">{p.name}</span>
+                      <span className="font-bold text-base">{p.name}</span>
                     </div>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         setExpandedPatternInfo(expandedPatternInfo === i ? null : i);
                       }}
-                      className="p-2 rounded-lg hover:bg-slate-500/10 transition-colors ml-2"
+                      className="p-2 rounded-lg hover:bg-slate-500/10 transition-colors ml-2 flex-shrink-0"
                     >
-                      <HelpCircle size={18} className="text-emerald-500" />
+                      <HelpCircle size={16} className="text-emerald-500" />
                     </button>
                   </div>
-                  <p className="text-xs text-emerald-500 font-bold mb-2">{p.label}</p>
+                  <p className="text-xs text-emerald-500 font-bold mb-1.5">{p.label}</p>
                   <p className="text-xs text-emerald-500 font-medium">{p.benefit}</p>
                 </button>
                 
                 {/* 展開的詳細說明 */}
                 <div 
                   className={`overflow-hidden transition-all duration-500 ease-in-out ${
-                    expandedPatternInfo === i ? 'max-h-48 opacity-100 mt-2' : 'max-h-0 opacity-0'
+                    expandedPatternInfo === i ? 'max-h-40 opacity-100 mt-2' : 'max-h-0 opacity-0'
                   }`}
                 >
                   <div className={`mx-2 px-4 py-3 ${darkMode ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-700'} rounded-2xl text-sm leading-relaxed`}>
@@ -445,22 +568,19 @@ const App: React.FC = () => {
 
           <div>
             <label className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40 mb-3 block">練習時長 (分鐘)</label>
-            <div className={`flex items-center gap-3 sm:gap-4 p-2 rounded-[32px] ${darkMode ? 'bg-slate-800' : 'bg-slate-100'}`}>
+            <div className={`flex items-center gap-3 p-2 rounded-[32px] ${darkMode ? 'bg-slate-800' : 'bg-slate-100'}`}>
               <button 
                 onClick={() => setDuration(Math.max(1, duration - 1))} 
-                className="w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-xl sm:text-2xl font-bold hover:bg-slate-500/10 transition-colors"
+                className="w-12 h-12 rounded-full flex items-center justify-center text-2xl font-bold hover:bg-slate-500/10 transition-colors flex-shrink-0"
               >
                 -
               </button>
-              <input 
-                type="number" 
-                value={duration} 
-                onChange={(e) => setDuration(Number(e.target.value))} 
-                className="flex-1 bg-transparent text-center text-2xl font-black focus:outline-none" 
-              />
+              <div className="flex-1 text-center">
+                <div className="text-3xl font-black">{duration}</div>
+              </div>
               <button 
                 onClick={() => setDuration(duration + 1)} 
-                className="w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-xl sm:text-2xl font-bold hover:bg-slate-500/10 transition-colors"
+                className="w-12 h-12 rounded-full flex items-center justify-center text-2xl font-bold hover:bg-slate-500/10 transition-colors flex-shrink-0"
               >
                 +
               </button>
