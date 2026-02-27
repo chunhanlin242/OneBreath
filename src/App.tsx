@@ -44,7 +44,7 @@ const BREATHING_PATTERNS: BreathingPattern[] = [
 ];
 
 const App: React.FC = () => {
-  const [currentView, setCurrentView] = useState<'home' | 'settings'>('home');
+  const [currentView, setCurrentView] = useState<'home' | 'settings' | 'stats'>('home');
   const [isSetupOpen, setIsSetupOpen] = useState<boolean>(false);
   const [duration, setDuration] = useState<number>(5);
   const [patternIndex, setPatternIndex] = useState<number>(0);
@@ -89,6 +89,27 @@ const App: React.FC = () => {
       completions.push(t);
       localStorage.setItem('breath_completions', JSON.stringify(completions));
     }
+    
+    // Track total meditation time
+    const totalTime = parseInt(localStorage.getItem('breath_total_time') || '0');
+    localStorage.setItem('breath_total_time', (totalTime + duration).toString());
+  };
+
+  const getTotalDays = (): number => {
+    return getCompletions().length;
+  };
+
+  const getTotalMinutes = (): number => {
+    return parseInt(localStorage.getItem('breath_total_time') || '0');
+  };
+
+  const formatTotalTime = (minutes: number): string => {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    if (hours > 0) {
+      return `${hours} 小時 ${mins} 分鐘`;
+    }
+    return `${mins} 分鐘`;
   };
 
   const getStreak = (): number => {
@@ -126,6 +147,52 @@ const App: React.FC = () => {
     localStorage.setItem('breath_remind', JSON.stringify(reminderEnabled));
     localStorage.setItem('breath_time', reminderTime);
   }, [darkMode, musicEnabled, reminderEnabled, reminderTime]);
+
+  // Request notification permission
+  useEffect(() => {
+    if (reminderEnabled && 'Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, [reminderEnabled]);
+
+  // Schedule daily notification
+  useEffect(() => {
+    if (!reminderEnabled || !reminderTime) return;
+
+    const scheduleNotification = () => {
+      const now = new Date();
+      const [hours, minutes] = reminderTime.split(':').map(Number);
+      
+      let scheduledTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes, 0, 0);
+      
+      // If the time has passed today, schedule for tomorrow
+      if (scheduledTime <= now) {
+        scheduledTime.setDate(scheduledTime.getDate() + 1);
+      }
+      
+      const timeUntilNotification = scheduledTime.getTime() - now.getTime();
+      
+      const timeoutId = setTimeout(() => {
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification('One Breathe 🧘', {
+            body: '該來放鬆一下了，深呼吸讓心靈平靜。',
+            icon: '/icon-192x192.png',
+            badge: '/icon-192x192.png',
+            tag: 'breathing-reminder',
+            requireInteraction: false,
+            vibrate: [200, 100, 200],
+          });
+        }
+        // Schedule next day
+        scheduleNotification();
+      }, timeUntilNotification);
+
+      return () => clearTimeout(timeoutId);
+    };
+
+    const cleanup = scheduleNotification();
+    return cleanup;
+  }, [reminderEnabled, reminderTime]);
 
   // --- Piano music on landing page ---
   useEffect(() => {
@@ -315,7 +382,11 @@ const App: React.FC = () => {
       const remaining = Math.max(0, duration * 60 - elapsed);
       setTimeLeft(remaining);
       if (remaining <= 0) {
-        setIsActive(false); 
+        // Clear interval immediately
+        if (tickRef.current) {
+          clearInterval(tickRef.current);
+          tickRef.current = null;
+        }
         stopOceanSound(); 
         setTimeout(() => {
           playSingingBowl();
@@ -334,7 +405,9 @@ const App: React.FC = () => {
       setPhase(p); setPhaseProgress(prog);
     };
     tickRef.current = setInterval(tick, 100);
-    return () => clearInterval(tickRef.current!);
+    return () => {
+      if (tickRef.current) clearInterval(tickRef.current);
+    };
   }, [isActive, duration, pattern]);
 
   const circleScale = phase === 'inhale' ? 0.4 + (phaseProgress * 0.6) : phase === 'hold' ? 1.0 : 1.0 - (phaseProgress * 0.6);
@@ -355,7 +428,7 @@ const App: React.FC = () => {
     <div className={`min-h-screen transition-colors duration-500 font-sans ${darkMode ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-900'}`}>
       
       {/* 練習中 */}
-      {isActive && (
+      {isActive && !showCompletion && (
         <div className="fixed inset-0 z-[200] bg-inherit flex flex-col items-center justify-center p-6">
           <div className="text-center mb-12">
             <p className="text-emerald-500 tracking-[0.3em] uppercase font-black mb-2 animate-pulse">
@@ -373,17 +446,27 @@ const App: React.FC = () => {
 
       {/* 完成 */}
       {showCompletion && (
-        <div className="fixed inset-0 z-[210] bg-inherit flex flex-col items-center justify-center text-center p-6 animate-in fade-in">
+        <div className="fixed inset-0 z-[220] bg-inherit flex flex-col items-center justify-center text-center p-6 animate-in fade-in overflow-y-auto">
           <div className="text-7xl mb-6 animate-pulse">🌊</div>
           <h2 className="text-3xl font-bold mb-4">平靜達成</h2>
           
-          {getStreak() > 0 && (
-            <div className={`inline-block px-6 py-2 rounded-full ${darkMode ? 'bg-slate-800/70' : 'bg-white/70'} backdrop-blur-xl border ${darkMode ? 'border-slate-700/50' : 'border-white/50'} shadow-lg text-emerald-500 font-medium mb-6`}>
-              {getStreak()} 天連續記錄 🔥
+          {/* Stats Grid */}
+          <div className="grid grid-cols-3 gap-3 mb-6 w-full max-w-md">
+            <div className={`p-4 rounded-2xl ${darkMode ? 'bg-slate-800/70 border-slate-700/50' : 'bg-white/70 border-white/50'} backdrop-blur-xl border shadow-lg`}>
+              <div className="text-2xl font-bold text-emerald-500">{getTotalDays()}</div>
+              <div className={`text-xs ${darkMode ? 'text-slate-400' : 'text-gray-600'} mt-1`}>總天數</div>
             </div>
-          )}
+            <div className={`p-4 rounded-2xl ${darkMode ? 'bg-slate-800/70 border-slate-700/50' : 'bg-white/70 border-white/50'} backdrop-blur-xl border shadow-lg`}>
+              <div className="text-2xl font-bold text-emerald-500">{getTotalMinutes()}</div>
+              <div className={`text-xs ${darkMode ? 'text-slate-400' : 'text-gray-600'} mt-1`}>總分鐘</div>
+            </div>
+            <div className={`p-4 rounded-2xl ${darkMode ? 'bg-slate-800/70 border-slate-700/50' : 'bg-white/70 border-white/50'} backdrop-blur-xl border shadow-lg`}>
+              <div className="text-2xl font-bold text-emerald-500">{getStreak()}</div>
+              <div className={`text-xs ${darkMode ? 'text-slate-400' : 'text-gray-600'} mt-1`}>連續天</div>
+            </div>
+          </div>
 
-          <div className="flex flex-col items-center gap-3 mb-8">
+          <div className="flex flex-col items-center gap-3 mb-6">
             <div className={`flex items-center gap-3 px-6 py-4 rounded-3xl ${darkMode ? 'bg-slate-800/70 border-slate-700/50' : 'bg-white/70 border-white/50'} backdrop-blur-xl border shadow-2xl shadow-emerald-500/20 transition-all duration-700 ${checkAnimDone ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}`}>
               <svg viewBox="0 0 24 24" className="w-8 h-8 text-emerald-500" fill="none">
                 <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2.5" />
@@ -395,7 +478,7 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          <div className={`space-y-3 px-6 py-5 rounded-3xl ${darkMode ? 'bg-slate-800/50 border-slate-700/40' : 'bg-white/50 border-white/40'} backdrop-blur-xl border shadow-xl mb-8 max-w-sm w-full`}>
+          <div className={`space-y-3 px-6 py-5 rounded-3xl ${darkMode ? 'bg-slate-800/50 border-slate-700/40' : 'bg-white/50 border-white/40'} backdrop-blur-xl border shadow-xl mb-6 max-w-sm w-full`}>
             <p className={`${darkMode ? 'text-slate-400' : 'text-gray-600'} text-xs uppercase tracking-widest font-semibold`}>最近 7 天</p>
             <div className="grid grid-cols-7 gap-2">
               {getRecentDates().map(({ str, label, done }) => {
@@ -420,7 +503,17 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          <button onClick={() => { setShowCompletion(false); setCheckAnimDone(false); }} className="px-10 py-4 bg-emerald-500 text-white rounded-full font-bold shadow-xl">回到首頁</button>
+          <button 
+            onClick={() => { 
+              setShowCompletion(false); 
+              setCheckAnimDone(false); 
+              setIsActive(false);
+              setCurrentView('home'); 
+            }} 
+            className="px-10 py-4 bg-emerald-500 text-white rounded-full font-bold shadow-xl"
+          >
+            回到首頁
+          </button>
         </div>
       )}
 
@@ -449,9 +542,103 @@ const App: React.FC = () => {
               <Play fill="white" size={24} /> 開始練習
             </button>
           </div>
+        ) : currentView === 'stats' ? (
+          <div className="animate-in fade-in slide-in-from-bottom-6 duration-700">
+            <h2 className="text-3xl font-bold mb-8">統計數據</h2>
+            
+            {/* Big Stats Cards */}
+            <div className="space-y-4 mb-8">
+              <div className={`p-8 rounded-[32px] ${darkMode ? 'bg-slate-900' : 'bg-white shadow-sm'}`}>
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="p-4 bg-emerald-500/10 rounded-2xl text-emerald-500">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                      <line x1="16" y1="2" x2="16" y2="6"></line>
+                      <line x1="8" y1="2" x2="8" y2="6"></line>
+                      <line x1="3" y1="10" x2="21" y2="10"></line>
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm opacity-60 mb-1">總冥想天數</p>
+                    <p className="text-4xl font-black text-emerald-500">{getTotalDays()}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className={`p-8 rounded-[32px] ${darkMode ? 'bg-slate-900' : 'bg-white shadow-sm'}`}>
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="p-4 bg-emerald-500/10 rounded-2xl text-emerald-500">
+                    <Clock size={32} />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm opacity-60 mb-1">總冥想時間</p>
+                    <p className="text-4xl font-black text-emerald-500">{getTotalMinutes()}</p>
+                    <p className="text-xs opacity-40 mt-1">{formatTotalTime(getTotalMinutes())}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className={`p-8 rounded-[32px] ${darkMode ? 'bg-slate-900' : 'bg-white shadow-sm'}`}>
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="p-4 bg-emerald-500/10 rounded-2xl text-emerald-500">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M8.5 14.5L7 16l-3-3 3-3 1.5 1.5"></path>
+                      <path d="M15.5 14.5L17 16l3-3-3-3-1.5 1.5"></path>
+                      <line x1="12" y1="2" x2="12" y2="10"></line>
+                      <line x1="12" y1="14" x2="12" y2="22"></line>
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm opacity-60 mb-1">連續冥想天數</p>
+                    <p className="text-4xl font-black text-emerald-500">{getStreak()}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Weekly Calendar */}
+            <div className={`p-6 rounded-[32px] ${darkMode ? 'bg-slate-900' : 'bg-white shadow-sm'}`}>
+              <h3 className="font-bold mb-4">最近 7 天</h3>
+              <div className="grid grid-cols-7 gap-2">
+                {getRecentDates().map(({ str, label, done }) => {
+                  const isToday = str === todayStr();
+                  return (
+                    <div key={str} className="flex flex-col items-center gap-2">
+                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${done ? 'bg-gradient-to-br from-emerald-400 to-teal-500 shadow-lg' : darkMode ? 'bg-slate-800' : 'bg-slate-100'} ${isToday && done ? 'ring-2 ring-emerald-400' : ''}`}>
+                        {done && (
+                          <svg viewBox="0 0 14 14" className="w-6 h-6" fill="none">
+                            <path d="M3 7l2.8 3 5-6" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        )}
+                      </div>
+                      <span className={`text-xs font-medium ${darkMode ? 'text-slate-500' : 'text-gray-500'}`}>
+                        {new Date(str + 'T12:00:00').toLocaleDateString('zh-TW', { weekday: 'narrow' })}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
         ) : (
           <div className="animate-in fade-in slide-in-from-bottom-6 duration-700">
             <h2 className="text-3xl font-bold mb-8">設定</h2>
+            
+            {/* Notification Permission Warning */}
+            {reminderEnabled && 'Notification' in window && Notification.permission !== 'granted' && (
+              <div className={`mb-4 p-4 rounded-2xl ${darkMode ? 'bg-amber-900/30 border-amber-700/50' : 'bg-amber-50 border-amber-200'} border`}>
+                <p className={`text-sm ${darkMode ? 'text-amber-200' : 'text-amber-800'} mb-2`}>
+                  ⚠️ 請允許通知權限才能收到提醒
+                </p>
+                <button
+                  onClick={() => Notification.requestPermission()}
+                  className="text-xs px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-medium transition-colors"
+                >
+                  開啟通知權限
+                </button>
+              </div>
+            )}
+            
             <div className={`rounded-[32px] overflow-hidden ${darkMode ? 'bg-slate-900' : 'bg-white shadow-sm'}`}>
               <div className="p-6 flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -596,6 +783,14 @@ const App: React.FC = () => {
         <button onClick={() => setCurrentView('home')} className={`flex flex-col items-center gap-1 flex-1 ${currentView === 'home' ? 'text-emerald-500' : ''}`}>
           <Home size={22} strokeWidth={currentView === 'home' ? 3 : 2} />
           <span className="text-[10px] font-bold">首頁</span>
+        </button>
+        <button onClick={() => setCurrentView('stats')} className={`flex flex-col items-center gap-1 flex-1 ${currentView === 'stats' ? 'text-emerald-500' : ''}`}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={currentView === 'stats' ? 3 : 2} strokeLinecap="round" strokeLinejoin="round">
+            <line x1="18" y1="20" x2="18" y2="10"></line>
+            <line x1="12" y1="20" x2="12" y2="4"></line>
+            <line x1="6" y1="20" x2="6" y2="14"></line>
+          </svg>
+          <span className="text-[10px] font-bold">統計</span>
         </button>
         <button onClick={() => setMusicEnabled(!musicEnabled)} className={`flex flex-col items-center gap-1 flex-1 ${musicEnabled ? 'text-emerald-500' : ''}`}>
           {musicEnabled ? <Volume2 size={22} /> : <VolumeX size={22} />}
